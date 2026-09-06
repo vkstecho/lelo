@@ -21,13 +21,21 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // Orders - anyone (even not logged in) can CREATE an order, but only
-    // admin can read the order list, or update/cancel an order.
-    // This is what lets customers place orders with no login at all.
+    // Orders - a customer must verify their phone number with an OTP
+    // before an order can be created (enforced both in the UI and here:
+    // the phone on the order must match their verified auth phone).
+    // Browsing/cart stays free of login; only placing an order needs it.
+    // Only admin can read the full order list, or update/cancel an order.
+    // A customer can read back their OWN orders (matched by verified
+    // phone), for order history that follows them across devices.
     match /orders/{orderId} {
-      allow read, update, delete: if isAdmin();
+      allow read: if isAdmin() ||
+        (request.auth != null && request.auth.token.phone_number == '+91' + resource.data.phone);
+      allow update, delete: if isAdmin();
 
       allow create: if
+        request.auth != null &&
+        request.auth.token.phone_number == '+91' + request.resource.data.phone &&
         request.resource.data.keys().hasAll(['items','subtotal','phone','status','createdAt']) &&
         request.resource.data.status == 'new' &&
         request.resource.data.phone is string &&

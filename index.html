@@ -112,7 +112,10 @@
       <img src="./icons/icon-32.png" class="w-10 h-10 rounded-xl" alt="Lelo" />
       <div class="leading-none">
         <div class="font-head font-extrabold text-2xl text-[var(--green)]">Lelo</div>
-        <div class="text-xs text-[var(--green-dark)]/70 -mt-0.5">सब कुछ</div>
+        <div class="flex items-center gap-2 -mt-0.5">
+          <span class="text-xs text-[var(--green-dark)]/70">सब कुछ</span>
+          <a href="#admin" id="adminLinkSmall" class="text-[10px] text-black/25 underline">admin</a>
+        </div>
       </div>
     </div>
     <div class="flex items-center gap-2">
@@ -206,6 +209,7 @@
       <input id="custPhone" type="tel" inputmode="numeric" maxlength="10" placeholder="10-digit mobile number" class="flex-1 bg-transparent py-3 pr-4 text-sm outline-none" />
     </div>
     <p id="phoneError" class="hidden text-xs text-red-600 mb-2">Enter a valid 10-digit mobile number</p>
+    <p id="checkoutOtpNote" class="hidden text-xs text-[var(--ink)]/50 mb-2">We'll text you a one-time code to verify this number before placing the order.</p>
 
     <label class="block text-xs font-semibold text-[var(--ink)]/60 mb-1 mt-2">Delivery location *</label>
     <button id="shareLocationBtn" class="tap w-full flex items-center gap-2 justify-center bg-[var(--sage-deep)] text-[var(--green-dark)] font-semibold text-sm py-3 rounded-xl mb-1">
@@ -219,6 +223,16 @@
 
     <div class="flex justify-between font-head font-bold text-base text-[var(--green-dark)] mb-4">
       <span>Total to pay (Cash on Delivery)</span><span>₹<span id="checkoutTotal">0</span></span>
+    </div>
+
+    <!-- OTP verification step - shown only once "Confirm Order" needs to
+         verify a phone number that isn't already verified this session -->
+    <div id="checkoutOtpStep" class="hidden mb-4">
+      <p class="text-sm font-semibold text-[var(--green-dark)] mb-2">Verify <span id="checkoutOtpPhoneLabel"></span></p>
+      <input id="checkoutOtpInput" type="tel" inputmode="numeric" maxlength="6" placeholder="Enter OTP" class="w-full bg-white border border-black/10 rounded-xl px-4 py-3 text-sm mb-2 outline-none text-center tracking-[0.3em]" />
+      <p id="checkoutOtpError" class="hidden text-xs text-red-600 mb-2"></p>
+      <button id="checkoutChangeNumberBtn" class="tap text-xs text-[var(--ink)]/50 underline mb-2">Wrong number? Change it</button>
+      <div id="checkout-recaptcha-container"></div>
     </div>
 
     <button id="confirmOrderBtn" class="tap w-full bg-[var(--orange)] hover:bg-[var(--orange-dark)] text-white font-head font-bold py-3.5 rounded-2xl disabled:opacity-50">
@@ -247,7 +261,31 @@
       <h2 class="font-head font-bold text-lg text-[var(--green-dark)]">My Orders</h2>
       <button id="closeOrders" class="tap text-2xl text-black/40">&times;</button>
     </div>
-    <p class="text-xs text-[var(--ink)]/50 mb-4">Live status, updated by our team</p>
+    <p class="text-xs text-[var(--ink)]/50 mb-3">Live status, updated by our team</p>
+
+    <div id="myOrdersSignInBox" class="mb-4">
+      <button id="myOrdersSignInBtn" class="tap text-xs font-semibold text-[var(--green-dark)] underline">Ordered from another device? Sign in to see all your orders</button>
+      <div id="myOrdersSignedIn" class="hidden items-center justify-between bg-[var(--sage)] rounded-xl px-3 py-2">
+        <span class="text-xs text-[var(--ink)]/70">Signed in as <span id="myOrdersSignedInPhone" class="font-semibold"></span></span>
+        <button id="myOrdersSignOutBtn" class="tap text-xs font-semibold text-red-600">Sign out</button>
+      </div>
+      <div id="myOrdersOtpForm" class="hidden mt-2 space-y-2">
+        <div id="myOrdersPhoneStep">
+          <div class="flex items-center bg-[var(--sage)] rounded-xl overflow-hidden">
+            <span class="pl-4 pr-2 text-sm text-[var(--ink)]/60">+91</span>
+            <input id="myOrdersPhoneInput" type="tel" inputmode="numeric" maxlength="10" placeholder="Mobile number" class="flex-1 bg-transparent py-3 pr-4 text-sm outline-none" />
+          </div>
+          <button id="myOrdersSendOtpBtn" class="tap w-full bg-[var(--green)] text-white font-head font-bold py-2.5 rounded-xl mt-2 text-sm">Send OTP</button>
+          <div id="my-orders-recaptcha-container" class="mt-2"></div>
+        </div>
+        <div id="myOrdersOtpStep" class="hidden">
+          <input id="myOrdersOtpInput" type="tel" inputmode="numeric" maxlength="6" placeholder="Enter OTP" class="w-full bg-white border border-black/10 rounded-xl px-4 py-2.5 text-sm outline-none text-center tracking-[0.3em]" />
+          <button id="myOrdersVerifyOtpBtn" class="tap w-full bg-[var(--green)] text-white font-head font-bold py-2.5 rounded-xl mt-2 text-sm">Verify &amp; Sign in</button>
+        </div>
+        <p id="myOrdersOtpError" class="hidden text-xs text-red-600"></p>
+      </div>
+    </div>
+
     <div id="myOrdersList" class="space-y-4"></div>
   </div>
 </div>
@@ -419,7 +457,13 @@
   </header>
 
   <!-- Orders tab -->
-  <section id="tabOrders" class="max-w-md mx-auto px-4 py-4 space-y-3"></section>
+  <section id="tabOrders" class="max-w-md mx-auto px-4 py-4 space-y-3">
+    <div class="flex gap-2 mb-1">
+      <button data-orders-sort="newest" class="orders-sort-btn tap flex-1 text-xs font-semibold py-2 rounded-full bg-[var(--green)] text-white">Newest first</button>
+      <button data-orders-sort="customer" class="orders-sort-btn tap flex-1 text-xs font-semibold py-2 rounded-full bg-white text-[var(--green-dark)] border border-black/10">By Mobile Number</button>
+    </div>
+    <div id="ordersListInner" class="space-y-3"></div>
+  </section>
 
   <!-- Requests tab -->
   <section id="tabRequests" class="hidden max-w-md mx-auto px-4 py-4 space-y-3"></section>
@@ -866,6 +910,11 @@ function openCheckout(){
   if (!nameEl.value && p.name) nameEl.value = p.name;
   if (!phoneEl.value && p.phone) phoneEl.value = p.phone;
   if (!addrEl.value && p.address) addrEl.value = p.address;
+  document.getElementById('checkoutOtpStep').classList.add('hidden');
+  document.getElementById('checkoutOtpError').classList.add('hidden');
+  document.getElementById('confirmOrderLabel').textContent = 'Confirm Order';
+  checkoutConfirmation = null;
+  checkoutPendingPhone = null;
   document.getElementById('checkoutModal').classList.add('show');
 }
 function closeCheckout(){
@@ -902,6 +951,28 @@ document.getElementById('shareLocationBtn').addEventListener('click', ()=>{
 });
 
 document.getElementById('confirmOrderBtn').addEventListener('click', async ()=>{
+  const otpStepVisible = !document.getElementById('checkoutOtpStep').classList.contains('hidden');
+
+  if (otpStepVisible) {
+    const code = document.getElementById('checkoutOtpInput').value.trim();
+    const err = document.getElementById('checkoutOtpError');
+    err.classList.add('hidden');
+    if (!checkoutConfirmation || !checkoutPendingPhone) { return; }
+    const btn = document.getElementById('confirmOrderBtn');
+    const label = document.getElementById('confirmOrderLabel');
+    btn.disabled = true; label.textContent = 'Verifying...';
+    try {
+      await withTimeout(checkoutConfirmation.confirm(code), 15000, 'Verifying OTP');
+      const address = document.getElementById('custAddress').value.trim();
+      await placeOrderNow(checkoutPendingPhone, address);
+    } catch (e) {
+      err.textContent = e.message || 'Incorrect OTP. Please try again.'; err.classList.remove('hidden');
+      label.textContent = 'Verify & Place Order';
+      btn.disabled = false;
+    }
+    return;
+  }
+
   const phone = document.getElementById('custPhone').value.trim();
   const phoneError = document.getElementById('phoneError');
   if (phone.length !== 10) { phoneError.classList.remove('hidden'); return; }
@@ -916,10 +987,64 @@ document.getElementById('confirmOrderBtn').addEventListener('click', async ()=>{
   const lines = cartLines();
   if (lines.length === 0) { toast('Your cart is empty', 'error'); return; }
 
+  // If we're already verified as this exact number, skip straight to
+  // placing the order. Otherwise, verify it with an OTP first.
+  if (customerPhoneDigits() === phone) {
+    await placeOrderNow(phone, address);
+  } else {
+    await startCheckoutOtp(phone);
+  }
+});
+
+let checkoutRecaptcha = null;
+let checkoutConfirmation = null;
+let checkoutPendingPhone = null;
+
+function ensureCheckoutRecaptcha(){
+  if (checkoutRecaptcha) return;
+  checkoutRecaptcha = new firebase.auth.RecaptchaVerifier('checkout-recaptcha-container', { size: 'invisible' });
+}
+
+async function startCheckoutOtp(phone){
+  const btn = document.getElementById('confirmOrderBtn');
+  const label = document.getElementById('confirmOrderLabel');
+  const err = document.getElementById('checkoutOtpError');
+  err.classList.add('hidden');
+  btn.disabled = true; label.textContent = 'Sending OTP...';
+  try {
+    ensureCheckoutRecaptcha();
+    checkoutConfirmation = await withTimeout(
+      auth.signInWithPhoneNumber('+91' + phone, checkoutRecaptcha), 15000, 'Sending OTP'
+    );
+    checkoutPendingPhone = phone;
+    document.getElementById('checkoutOtpPhoneLabel').textContent = '+91 ' + phone;
+    document.getElementById('checkoutOtpInput').value = '';
+    document.getElementById('checkoutOtpStep').classList.remove('hidden');
+    label.textContent = 'Verify & Place Order';
+    toast('OTP sent to +91 ' + phone);
+  } catch (e) {
+    err.textContent = e.message || 'Could not send OTP. Please try again.'; err.classList.remove('hidden');
+    if (checkoutRecaptcha) checkoutRecaptcha.render().then(id=>{ if (window.grecaptcha) window.grecaptcha.reset(id); });
+    label.textContent = 'Confirm Order';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+document.getElementById('checkoutChangeNumberBtn').addEventListener('click', ()=>{
+  document.getElementById('checkoutOtpStep').classList.add('hidden');
+  document.getElementById('confirmOrderLabel').textContent = 'Confirm Order';
+  checkoutConfirmation = null;
+  checkoutPendingPhone = null;
+  document.getElementById('custPhone').focus();
+});
+
+async function placeOrderNow(phone, address){
   const btn = document.getElementById('confirmOrderBtn');
   const label = document.getElementById('confirmOrderLabel');
   btn.disabled = true; label.textContent = 'Placing order...';
 
+  const lines = cartLines();
   const order = {
     items: lines.map(l => ({ productId: l.id, name: l.name, price: l.price, qty: l.qty, unit: l.unit || '' })),
     subtotal: cartTotal(),
@@ -951,6 +1076,9 @@ document.getElementById('confirmOrderBtn').addEventListener('click', async ()=>{
     document.getElementById('custName').value = '';
     document.getElementById('custPhone').value = '';
     document.getElementById('custAddress').value = '';
+    document.getElementById('checkoutOtpStep').classList.add('hidden');
+    document.getElementById('checkoutOtpInput').value = '';
+    label.textContent = 'Confirm Order';
     sharedLocation = null;
     document.getElementById('locationBtnLabel').textContent = 'Share my current location';
     document.getElementById('locationStatus').textContent = '';
@@ -960,10 +1088,11 @@ document.getElementById('confirmOrderBtn').addEventListener('click', async ()=>{
     document.querySelectorAll('.swoosh-anim').forEach(p=>{ p.style.animation='none'; void p.offsetWidth; p.style.animation=null; });
   } catch (err) {
     toast(err.message || 'Could not place order. Please try again.', 'error');
+    label.textContent = 'Confirm Order';
   } finally {
     btn.disabled = false; label.textContent = 'Confirm Order';
   }
-});
+}
 
 document.getElementById('confirmDoneBtn').addEventListener('click', ()=>{
   document.getElementById('confirmModal').classList.remove('show');
@@ -976,8 +1105,13 @@ document.getElementById('confirmDoneBtn').addEventListener('click', ()=>{
 const CUST_STATUS_FLOW = ['new','confirmed','out_for_delivery','delivered'];
 const CUST_STATUS_LABEL = { new:'Order placed', confirmed:'Confirmed', out_for_delivery:'Out for delivery', delivered:'Delivered', cancelled:'Cancelled' };
 
-let myOrders = {};      // id -> order data
+let myOrders = {};      // id -> order data (merged: local-device ids + phone-verified)
 let myOrdersUnsubs = [];
+let myOrdersPhoneUnsub = null;
+
+function toMillis(ts){
+  return (ts && ts.toDate) ? ts.toDate().getTime() : 0;
+}
 
 function myOrderIds(){
   try { return JSON.parse(localStorage.getItem('lelo_my_orders') || '[]'); }
@@ -1000,22 +1134,47 @@ function initMyOrders(){
   myOrdersUnsubs = [];
   myOrders = {};
   const ids = myOrderIds();
-  if (ids.length === 0) { renderOrdersBadge(); renderMyOrdersList(); return; }
-  chunk(ids, 10).forEach(group=>{
-    const unsub = db.collection('orders')
-      .where(firebase.firestore.FieldPath.documentId(), 'in', group)
-      .onSnapshot(snap=>{
-        snap.docs.forEach(d=>{ myOrders[d.id] = { id:d.id, ...d.data() }; });
-        renderOrdersBadge();
-        renderMyOrdersList();
-      }, err=> console.error('myOrders', err));
-    myOrdersUnsubs.push(unsub);
-  });
+  if (ids.length > 0) {
+    chunk(ids, 10).forEach(group=>{
+      const unsub = db.collection('orders')
+        .where(firebase.firestore.FieldPath.documentId(), 'in', group)
+        .onSnapshot(snap=>{
+          snap.docs.forEach(d=>{ myOrders[d.id] = { id:d.id, ...d.data() }; });
+          renderOrdersBadge();
+          renderMyOrdersList();
+        }, err=> console.error('myOrders', err));
+      myOrdersUnsubs.push(unsub);
+    });
+  }
+  renderOrdersBadge();
+  renderMyOrdersList();
+}
+
+// A customer's own verified phone number (not an admin), if they've
+// optionally signed in via OTP from the "My Orders" screen.
+function customerPhoneDigits(){
+  const user = auth.currentUser;
+  if (!user || !user.phoneNumber || ADMIN_PHONES.includes(user.phoneNumber)) return null;
+  return user.phoneNumber.replace('+91', '');
+}
+
+function subscribeMyOrdersByPhone(){
+  if (myOrdersPhoneUnsub) return;
+  const phone = customerPhoneDigits();
+  if (!phone) return;
+  myOrdersPhoneUnsub = db.collection('orders').where('phone', '==', phone)
+    .onSnapshot(snap=>{
+      snap.docs.forEach(d=>{ myOrders[d.id] = { id:d.id, ...d.data() }; saveMyOrderId(d.id); });
+      renderOrdersBadge();
+      renderMyOrdersList();
+    }, err=> console.error('myOrdersByPhone', err));
+}
+function unsubscribeMyOrdersByPhone(){
+  if (myOrdersPhoneUnsub) { myOrdersPhoneUnsub(); myOrdersPhoneUnsub = null; }
 }
 
 function sortedMyOrders(){
-  const ids = myOrderIds();
-  return ids.map(id=>myOrders[id]).filter(Boolean);
+  return Object.values(myOrders).sort((a,b)=> toMillis(b.createdAt) - toMillis(a.createdAt));
 }
 
 function renderOrdersBadge(){
@@ -1070,6 +1229,7 @@ function renderMyOrdersList(){
 }
 
 function openOrdersModal(){
+  refreshMyOrdersSignInUI();
   renderMyOrdersList();
   document.getElementById('ordersModal').classList.add('show');
 }
@@ -1078,6 +1238,88 @@ function closeOrdersModal(){
 }
 document.getElementById('ordersBtn').addEventListener('click', openOrdersModal);
 document.getElementById('closeOrders').addEventListener('click', closeOrdersModal);
+
+/* ---- optional customer sign-in (OTP) for cross-device order history ---- */
+let myOrdersRecaptcha = null;
+let myOrdersConfirmation = null;
+
+function ensureMyOrdersRecaptcha(){
+  if (myOrdersRecaptcha) return;
+  myOrdersRecaptcha = new firebase.auth.RecaptchaVerifier('my-orders-recaptcha-container', { size: 'invisible' });
+}
+
+function refreshMyOrdersSignInUI(){
+  const phone = customerPhoneDigits();
+  const signInBtn = document.getElementById('myOrdersSignInBtn');
+  const signedInBox = document.getElementById('myOrdersSignedIn');
+  const otpForm = document.getElementById('myOrdersOtpForm');
+  if (phone) {
+    signInBtn.classList.add('hidden');
+    signedInBox.classList.remove('hidden');
+    signedInBox.classList.add('flex');
+    otpForm.classList.add('hidden');
+    document.getElementById('myOrdersSignedInPhone').textContent = '+91 ' + phone;
+  } else {
+    signInBtn.classList.remove('hidden');
+    signedInBox.classList.add('hidden');
+    signedInBox.classList.remove('flex');
+  }
+}
+
+document.getElementById('myOrdersSignInBtn').addEventListener('click', ()=>{
+  document.getElementById('myOrdersOtpForm').classList.remove('hidden');
+  document.getElementById('myOrdersSignInBtn').classList.add('hidden');
+});
+
+document.getElementById('myOrdersSendOtpBtn').addEventListener('click', async ()=>{
+  const digits = document.getElementById('myOrdersPhoneInput').value.trim();
+  const err = document.getElementById('myOrdersOtpError');
+  err.classList.add('hidden');
+  if (digits.length !== 10) { err.textContent = 'Enter a valid 10-digit mobile number'; err.classList.remove('hidden'); return; }
+  const btn = document.getElementById('myOrdersSendOtpBtn');
+  btn.disabled = true; btn.textContent = 'Sending...';
+  try {
+    ensureMyOrdersRecaptcha();
+    myOrdersConfirmation = await withTimeout(
+      auth.signInWithPhoneNumber('+91' + digits, myOrdersRecaptcha), 15000, 'Sending OTP'
+    );
+    document.getElementById('myOrdersPhoneStep').classList.add('hidden');
+    document.getElementById('myOrdersOtpStep').classList.remove('hidden');
+  } catch (e) {
+    err.textContent = e.message || 'Could not send OTP'; err.classList.remove('hidden');
+    if (myOrdersRecaptcha) myOrdersRecaptcha.render().then(id=>{ if (window.grecaptcha) window.grecaptcha.reset(id); });
+  } finally {
+    btn.disabled = false; btn.textContent = 'Send OTP';
+  }
+});
+
+document.getElementById('myOrdersVerifyOtpBtn').addEventListener('click', async ()=>{
+  const code = document.getElementById('myOrdersOtpInput').value.trim();
+  const err = document.getElementById('myOrdersOtpError');
+  err.classList.add('hidden');
+  if (!myOrdersConfirmation) return;
+  const btn = document.getElementById('myOrdersVerifyOtpBtn');
+  btn.disabled = true; btn.textContent = 'Verifying...';
+  try {
+    await withTimeout(myOrdersConfirmation.confirm(code), 15000, 'Verifying OTP');
+    document.getElementById('myOrdersOtpInput').value = '';
+    document.getElementById('myOrdersPhoneInput').value = '';
+    document.getElementById('myOrdersPhoneStep').classList.remove('hidden');
+    document.getElementById('myOrdersOtpStep').classList.add('hidden');
+    toast('Signed in! Loading your orders...');
+  } catch (e) {
+    err.textContent = e.message || 'Invalid OTP'; err.classList.remove('hidden');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Verify & Sign in';
+  }
+});
+
+document.getElementById('myOrdersSignOutBtn').addEventListener('click', async ()=>{
+  unsubscribeMyOrdersByPhone();
+  await auth.signOut();
+  refreshMyOrdersSignInUI();
+  toast('Signed out');
+});
 
 /* =========================================================
    REQUEST AN ITEM (customer) — text, voice, photo or video
@@ -1417,6 +1659,16 @@ auth.onAuthStateChanged(user=>{
     if (requestsUnsub) { requestsUnsub(); requestsUnsub = null; }
     if (window.location.hash === '#admin') showAdminLogin();
   }
+
+  // Customer side: an optional, non-admin sign-in powers cross-device
+  // "My Orders" lookup by verified phone number. Keep it in sync here so
+  // it also works correctly on page reload if a session already exists.
+  if (user && !ADMIN_PHONES.includes(user.phoneNumber)) {
+    subscribeMyOrdersByPhone();
+  } else {
+    unsubscribeMyOrdersByPhone();
+  }
+  refreshMyOrdersSignInUI();
 });
 
 /* =========================================================
@@ -1548,7 +1800,6 @@ function subscribeOrders(){
     .onSnapshot(snap=>{
       const orders = snap.docs.map(d=>({ id:d.id, ...d.data() }));
       renderOrders(orders);
-      latestOrders = orders;
       renderCustomers();
 
       if (!firstOrdersLoad) {
@@ -1572,13 +1823,47 @@ function subscribeOrders(){
   }
 }
 
+let ordersSortMode = 'newest';
+
+function sortOrdersForDisplay(orders){
+  const copy = orders.slice();
+  if (ordersSortMode === 'customer') {
+    copy.sort((a, b) => {
+      const phoneCmp = (a.phone || '').localeCompare(b.phone || '');
+      if (phoneCmp !== 0) return phoneCmp;
+      return (a.customerName || '').localeCompare(b.customerName || '');
+    });
+  } else {
+    copy.sort((a, b) => toMillis(b.createdAt) - toMillis(a.createdAt));
+  }
+  return copy;
+}
+
+document.querySelectorAll('.orders-sort-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    ordersSortMode = btn.dataset.ordersSort;
+    document.querySelectorAll('.orders-sort-btn').forEach(b=>{
+      const active = b === btn;
+      b.classList.toggle('bg-[var(--green)]', active);
+      b.classList.toggle('text-white', active);
+      b.classList.toggle('bg-white', !active);
+      b.classList.toggle('text-[var(--green-dark)]', !active);
+      b.classList.toggle('border', !active);
+      b.classList.toggle('border-black/10', !active);
+    });
+    renderOrders(latestOrders);
+  });
+});
+
 function renderOrders(orders){
-  const wrap = document.getElementById('tabOrders');
-  if (orders.length === 0) {
+  const wrap = document.getElementById('ordersListInner');
+  latestOrders = orders;
+  const displayOrders = sortOrdersForDisplay(orders);
+  if (displayOrders.length === 0) {
     wrap.innerHTML = `<p class="text-center text-sm text-[var(--ink)]/50 py-10">No orders yet</p>`;
     return;
   }
-  wrap.innerHTML = orders.map(o=>{
+  wrap.innerHTML = displayOrders.map(o=>{
     const time = o.createdAt && o.createdAt.toDate ? o.createdAt.toDate().toLocaleString('en-IN', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }) : 'Just now';
     const mapLink = o.location ? `https://www.google.com/maps?q=${o.location.lat},${o.location.lng}` : null;
     const nextStatus = STATUS_FLOW[STATUS_FLOW.indexOf(o.status)+1];
@@ -1674,10 +1959,6 @@ function renderItemRequests(reqs){
 /* =========================================================
    ADMIN: CUSTOMERS (aggregated from Orders + Item Requests)
    ========================================================= */
-function toMillis(ts){
-  return (ts && ts.toDate) ? ts.toDate().getTime() : 0;
-}
-
 function renderCustomers(){
   const wrap = document.getElementById('tabCustomers');
   if (!wrap) return;
