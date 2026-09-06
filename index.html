@@ -24,6 +24,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-storage-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-analytics-compat.js"></script>
 
 <style>
   :root{
@@ -411,6 +412,7 @@
       <button data-tab="requests" class="admin-tab relative flex-1 text-sm font-semibold py-2 rounded-lg text-white/80">Requests
         <span id="requestsBadge" class="hidden absolute -top-1 right-2 bg-[var(--orange)] text-white text-[10px] font-bold w-4 h-4 rounded-full items-center justify-center">0</span>
       </button>
+      <button data-tab="customers" class="admin-tab flex-1 text-sm font-semibold py-2 rounded-lg text-white/80">Customers</button>
       <button data-tab="products" class="admin-tab flex-1 text-sm font-semibold py-2 rounded-lg text-white/80">Products</button>
       <button data-tab="categories" class="admin-tab flex-1 text-sm font-semibold py-2 rounded-lg text-white/80">Categories</button>
     </div>
@@ -421,6 +423,9 @@
 
   <!-- Requests tab -->
   <section id="tabRequests" class="hidden max-w-md mx-auto px-4 py-4 space-y-3"></section>
+
+  <!-- Customers tab -->
+  <section id="tabCustomers" class="hidden max-w-md mx-auto px-4 py-4 space-y-3"></section>
 
   <!-- Products tab -->
   <section id="tabProducts" class="hidden max-w-md mx-auto px-4 py-4">
@@ -490,7 +495,8 @@ const firebaseConfig = {
   projectId: "lelo-sab-kuchh",
   storageBucket: "lelo-sab-kuchh.firebasestorage.app",
   messagingSenderId: "342006864517",
-  appId: "1:342006864517:web:01be2ea13bb213609267ec"
+  appId: "1:342006864517:web:01be2ea13bb213609267ec",
+  measurementId: "G-GXX9NTD9CM"
 };
 
 const ADMIN_PHONES = ['+918929394920', '+917497073993']; // E.164 format. Add more admins here if needed.
@@ -499,6 +505,19 @@ firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
 const storage = firebase.storage();
+
+// Analytics is optional: only initializes if measurementId is set, so the
+// app still works fine even before you've turned on Google Analytics.
+let analytics = null;
+try {
+  if (firebaseConfig.measurementId && firebaseConfig.measurementId !== 'PASTE_YOUR_MEASUREMENT_ID') {
+    analytics = firebase.analytics();
+  }
+} catch (e) { console.warn('Analytics not available', e); }
+
+function logEvent(name, params){
+  if (analytics) { try { analytics.logEvent(name, params || {}); } catch(e){} }
+}
 
 /* ---------- utility: withTimeout so nothing spins forever ---------- */
 function withTimeout(promise, ms, label) {
@@ -541,6 +560,8 @@ let activeCategory = 'all';
 let searchTerm = '';
 let sharedLocation = null;
 let ordersUnsub = null;
+let latestOrders = [];
+let latestRequests = [];
 let firstOrdersLoad = true;
 
 function saveCart(){ localStorage.setItem('lelo_cart', JSON.stringify(cart)); }
@@ -743,6 +764,10 @@ function changeQty(productId, delta){
   const current = cart[productId] || 0;
   const next = Math.max(0, current + delta);
   if (next === 0) delete cart[productId]; else cart[productId] = next;
+  if (delta > 0 && current === 0) {
+    const p = products.find(pr => pr.id === productId);
+    if (p) logEvent('add_to_cart', { item_name: p.name, price: p.price });
+  }
   saveCart();
   renderProducts();
   renderCartUI();
@@ -920,6 +945,7 @@ document.getElementById('confirmOrderBtn').addEventListener('click', async ()=>{
     });
     renderProfileDot();
     saveMyOrderId(ref.id);
+    logEvent('place_order', { value: order.subtotal, items_count: order.items.length });
 
     cart = {}; saveCart(); renderProducts(); renderCartUI();
     document.getElementById('custName').value = '';
@@ -1223,6 +1249,7 @@ document.getElementById('reqSendBtn').addEventListener('click', async ()=>{
     if (reqLocation) reqDoc.location = reqLocation;
 
     await withTimeout(db.collection('itemRequests').add(reqDoc), 12000, 'Sending request');
+    logEvent('item_request_sent', { has_voice: !!reqAudioBlob, has_photo: !!reqPhotoFile, has_video: !!reqVideoFile });
 
     if (!p.phone) { saveProfileToStorage({ ...p, phone }); renderProfileDot(); }
 
@@ -1501,7 +1528,7 @@ document.querySelectorAll('.admin-tab').forEach(btn=>{
     });
     btn.classList.add('bg-white','text-[var(--green-dark)]');
     btn.classList.remove('text-white/80');
-    ['orders','requests','products','categories'].forEach(t=>{
+    ['orders','requests','customers','products','categories'].forEach(t=>{
       document.getElementById('tab'+t.charAt(0).toUpperCase()+t.slice(1)).classList.toggle('hidden', t !== btn.dataset.tab);
     });
   });
@@ -1521,6 +1548,8 @@ function subscribeOrders(){
     .onSnapshot(snap=>{
       const orders = snap.docs.map(d=>({ id:d.id, ...d.data() }));
       renderOrders(orders);
+      latestOrders = orders;
+      renderCustomers();
 
       if (!firstOrdersLoad) {
         snap.docChanges().forEach(change=>{
@@ -1600,6 +1629,8 @@ function subscribeItemRequests(){
     .onSnapshot(snap=>{
       const reqs = snap.docs.map(d=>({ id:d.id, ...d.data() }));
       renderItemRequests(reqs);
+      latestRequests = reqs;
+      renderCustomers();
       const openCount = reqs.filter(r=>r.status!=='done').length;
       const badge = document.getElementById('requestsBadge');
       if (openCount > 0) { badge.classList.remove('hidden'); badge.classList.add('flex'); badge.textContent = openCount; }
@@ -1638,6 +1669,62 @@ function renderItemRequests(reqs){
       catch(err){ toast(err.message, 'error'); }
     });
   });
+}
+
+/* =========================================================
+   ADMIN: CUSTOMERS (aggregated from Orders + Item Requests)
+   ========================================================= */
+function toMillis(ts){
+  return (ts && ts.toDate) ? ts.toDate().getTime() : 0;
+}
+
+function renderCustomers(){
+  const wrap = document.getElementById('tabCustomers');
+  if (!wrap) return;
+
+  const byPhone = {};
+  latestOrders.forEach(o=>{
+    if (!o.phone) return;
+    const c = byPhone[o.phone] || (byPhone[o.phone] = { phone: o.phone, name: null, orderCount: 0, spent: 0, requestCount: 0, lastSeen: 0 });
+    if (o.customerName) c.name = o.customerName;
+    if (o.status !== 'cancelled') {
+      c.orderCount += 1;
+      c.spent += (o.subtotal || 0);
+    }
+    c.lastSeen = Math.max(c.lastSeen, toMillis(o.createdAt));
+  });
+  latestRequests.forEach(r=>{
+    if (!r.phone) return;
+    const c = byPhone[r.phone] || (byPhone[r.phone] = { phone: r.phone, name: null, orderCount: 0, spent: 0, requestCount: 0, lastSeen: 0 });
+    if (r.customerName) c.name = c.name || r.customerName;
+    c.requestCount += 1;
+    c.lastSeen = Math.max(c.lastSeen, toMillis(r.createdAt));
+  });
+
+  const customers = Object.values(byPhone).sort((a,b)=> b.lastSeen - a.lastSeen);
+
+  if (customers.length === 0) {
+    wrap.innerHTML = `<p class="text-center text-sm text-[var(--ink)]/50 py-10">No customers yet</p>`;
+    return;
+  }
+
+  wrap.innerHTML = `
+    <p class="text-xs text-[var(--ink)]/50 mb-1">${customers.length} customer${customers.length===1?'':'s'} · from orders &amp; requests</p>
+    ${customers.map(c=>{
+      const lastSeenText = c.lastSeen ? new Date(c.lastSeen).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' }) : '—';
+      return `<div class="bg-white rounded-2xl p-4 border border-black/5">
+        <div class="flex items-center justify-between">
+          <p class="text-sm font-semibold">${c.name || 'Customer'} · <a href="tel:+91${c.phone}" class="text-[var(--green-dark)] underline">+91 ${c.phone}</a></p>
+        </div>
+        <div class="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs text-[var(--ink)]/70">
+          <span>🛒 ${c.orderCount} order${c.orderCount===1?'':'s'}</span>
+          <span>💬 ${c.requestCount} request${c.requestCount===1?'':'s'}</span>
+          <span class="font-semibold text-[var(--green-dark)]">₹${c.spent} spent</span>
+        </div>
+        <p class="text-[11px] text-[var(--ink)]/40 mt-1.5">Last seen ${lastSeenText}</p>
+      </div>`;
+    }).join('')}
+  `;
 }
 
 /* =========================================================
