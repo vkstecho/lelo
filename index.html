@@ -280,6 +280,13 @@
 
     <div id="reqAttachPreview" class="hidden mb-3"></div>
 
+    <label class="block text-xs font-semibold text-[var(--ink)]/60 mb-1 mt-1">Your location (optional)</label>
+    <button id="reqShareLocationBtn" type="button" class="tap w-full flex items-center gap-2 justify-center bg-[var(--sage-deep)] text-[var(--green-dark)] font-semibold text-sm py-3 rounded-xl mb-1">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+      <span id="reqLocationBtnLabel">Share my current location</span>
+    </button>
+    <p id="reqLocationStatus" class="text-xs text-[var(--ink)]/50 mb-2"></p>
+
     <label class="block text-xs font-semibold text-[var(--ink)]/60 mb-1 mt-1">Mobile number *</label>
     <div class="flex items-center bg-[var(--sage)] rounded-xl mb-1 overflow-hidden">
       <span class="pl-4 pr-2 text-sm text-[var(--ink)]/60">+91</span>
@@ -1055,6 +1062,7 @@ let reqAudioBlob = null;
 let reqPhotoFile = null;
 let reqVideoFile = null;
 let reqRecording = false;
+let reqLocation = null;
 
 function clearReqAttachments(){
   reqAudioBlob = null; reqPhotoFile = null; reqVideoFile = null;
@@ -1137,6 +1145,9 @@ function openRequestModal(prefill){
   const p = loadProfile();
   document.getElementById('reqPhone').value = p.phone || '';
   document.getElementById('reqPhoneError').classList.add('hidden');
+  reqLocation = null;
+  document.getElementById('reqLocationBtnLabel').textContent = 'Share my current location';
+  document.getElementById('reqLocationStatus').textContent = '';
   document.getElementById('requestItemModal').classList.add('show');
 }
 function closeRequestModal(){
@@ -1149,6 +1160,29 @@ document.getElementById('closeRequestItem').addEventListener('click', closeReque
 
 document.getElementById('reqPhone').addEventListener('input', (e)=>{
   e.target.value = e.target.value.replace(/\D/g,'').slice(0,10);
+});
+
+document.getElementById('reqShareLocationBtn').addEventListener('click', ()=>{
+  const label = document.getElementById('reqLocationBtnLabel');
+  const status = document.getElementById('reqLocationStatus');
+  if (!navigator.geolocation) {
+    status.textContent = 'Location not supported on this device';
+    return;
+  }
+  label.textContent = 'Getting your location...';
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      reqLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      label.textContent = 'Location shared ✓';
+      status.textContent = `Lat ${reqLocation.lat.toFixed(4)}, Lng ${reqLocation.lng.toFixed(4)}`;
+      status.classList.add('text-[var(--green-dark)]');
+    },
+    () => {
+      label.textContent = 'Share my current location';
+      status.textContent = 'Could not get location. That\'s okay, we can call you instead.';
+    },
+    { enableHighAccuracy: true, timeout: 10000 }
+  );
 });
 
 async function uploadRequestMedia(fileOrBlob, folder, ext){
@@ -1186,6 +1220,7 @@ document.getElementById('reqSendBtn').addEventListener('click', async ()=>{
     if (reqAudioBlob) reqDoc.audioUrl = await uploadRequestMedia(reqAudioBlob, 'voice', 'webm');
     if (reqPhotoFile) reqDoc.imageUrl = await uploadRequestMedia(reqPhotoFile, 'photo', 'jpg');
     if (reqVideoFile) reqDoc.videoUrl = await uploadRequestMedia(reqVideoFile, 'video', 'mp4');
+    if (reqLocation) reqDoc.location = reqLocation;
 
     await withTimeout(db.collection('itemRequests').add(reqDoc), 12000, 'Sending request');
 
@@ -1586,6 +1621,7 @@ function renderItemRequests(reqs){
         <span class="text-xs font-bold text-white px-2 py-1 rounded-full ${r.status==='done' ? 'bg-[var(--green)]' : 'bg-[var(--orange)]'}">${r.status==='done' ? 'Done' : 'New'}</span>
       </div>
       <p class="text-sm font-semibold">${r.customerName || 'Customer'} · <a href="tel:+91${r.phone}" class="text-[var(--green-dark)] underline">+91 ${r.phone}</a></p>
+      ${r.location ? `<a href="https://www.google.com/maps?q=${r.location.lat},${r.location.lng}" target="_blank" class="text-xs text-blue-600 underline">📍 View location on map</a>` : ''}
       ${r.message ? `<p class="text-sm text-[var(--ink)]/70 mt-1">${r.message}</p>` : ''}
       ${r.imageUrl ? `<img src="${r.imageUrl}" class="w-full max-h-48 object-cover rounded-xl mt-2" />` : ''}
       ${r.videoUrl ? `<video src="${r.videoUrl}" controls class="w-full max-h-48 rounded-xl mt-2"></video>` : ''}
